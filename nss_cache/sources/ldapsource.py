@@ -431,7 +431,11 @@ class UpdateGetter(object):
     Returns:
       number of seconds since epoch.
     """
-    t = time.strptime(ldap_ts_string, '%Y%m%d%H%M%SZ')
+    try:
+      t = time.strptime(ldap_ts_string, '%Y%m%d%H%M%SZ')
+    except ValueError:
+      ldap_ts_cleaned = ldap_ts_string[:ldap_ts_string.find('.')]+ldap_ts_string[-1]
+      t = time.strptime(ldap_ts_cleaned, '%Y%m%d%H%M%SZ')
     return int(calendar.timegm(t))
 
   def FromTimestampToLdap(self, ts):
@@ -471,8 +475,15 @@ class UpdateGetter(object):
       # since openldap disallows modifyTimestamp "greater than" we have to
       # increment by one second.
       ts = int(ts.rstrip('Z')) + 1
+
+      if ts % 100 >= 60 : 
+         # some ldap servers objects strongly to seconds being 60 
+         ts = ts - 60
+
       ts = '%sZ' % ts
+
       search_filter = ('(&%s(modifyTimestamp>=%s))' % (search_filter, ts))
+
 
     if search_scope == 'base':
       search_scope = ldap.SCOPE_BASE
