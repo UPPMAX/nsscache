@@ -510,6 +510,9 @@ class UpdateGetter(object):
           logging.warn('invalid object passed: %r not in %r', field, obj)
           raise ValueError('Invalid object passed: %r', obj)
 
+      if not 'modifyTimestamp' in obj.keys():
+         obj['modifyTimestamp'] = ['19700101000000Z']
+
       obj_ts = self.FromLdapToTimestamp(obj['modifyTimestamp'][0])
 
       if max_ts is None or obj_ts > max_ts:
