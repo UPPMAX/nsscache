@@ -332,6 +332,133 @@ class TestLdapSource(mox.MoxTestBase):
     ent = data.PopItem()
 
     self.assertEqual('testgroup', ent.name)
+ 
+  def testGetGroupMapBis(self):
+    test_posix_group = ('cn=test,ou=Group,dc=example,dc=com',
+                        {'gidNumber': [1000],
+                         'cn': ['testgroup'],
+                         'member': ['cn=testguy,ou=People,dc=example,dc=com', 
+                                    'cn=fooguy,ou=People,dc=example,dc=com',
+                                    'cn=barguy,ou=People,dc=example,dc=com'],
+                         'modifyTimestamp': ['20070227012807Z']})
+
+    config = dict(self.config)
+    config['rfc2307bis'] = 1
+    attrlist = ['cn', 'gidNumber', 'member',
+                'modifyTimestamp']
+
+    mock_rlo = self.mox.CreateMock(ldap.ldapobject.ReconnectLDAPObject)
+    mock_rlo.simple_bind_s(
+        cred='TEST_BIND_PASSWORD',
+        who='TEST_BIND_DN')
+    mock_rlo.search(base='TEST_BASE',
+                    filterstr='TEST_FILTER',
+                    scope=ldap.SCOPE_ONELEVEL,
+                    attrlist=mox.SameElementsAs(attrlist)).AndReturn(
+                        'TEST_RES')
+
+    mock_rlo.result('TEST_RES',
+                    all=0,
+                    timeout='TEST_TIMELIMIT').AndReturn(
+                        (ldap.RES_SEARCH_ENTRY, [test_posix_group]))
+    mock_rlo.result('TEST_RES',
+                    all=0,
+                    timeout='TEST_TIMELIMIT').AndReturn(
+                        (ldap.RES_SEARCH_RESULT, None))
+
+    self.mox.StubOutWithMock(ldap, 'ldapobject')
+    ldap.ldapobject.ReconnectLDAPObject(
+        uri='TEST_URI',
+        retry_max='TEST_RETRY_MAX',
+        retry_delay='TEST_RETRY_DELAY').AndReturn(mock_rlo)
+
+    self.mox.ReplayAll()
+
+    source = ldapsource.LdapSource(config)
+    data = source.GetGroupMap()
+
+    self.assertEqual(1, len(data))
+
+    ent = data.PopItem()
+
+    self.assertEqual('testgroup', ent.name)
+    self.assertEqual(3, len(ent.members))
+
+
+
+  def testGetGroupMapBisAlt(self):
+    test_posix_group = ('cn=test,ou=Group,dc=example,dc=com',
+                        {'gidNumber': [1000],
+                         'cn': ['testgroup'],
+                         'uniqueMember': 
+                         ['cn=testguy,ou=People,dc=example,dc=com'], 
+                         'modifyTimestamp': ['20070227012807Z']})
+    dn_user = 'cn=testguy,ou=People,dc=example,dc=com'
+    test_posix_account = (dn_user,
+                          {'uidNumber': [1000],
+                           'gidNumber': [1000],
+                           'uid': ['test'],
+                           'cn': ['testguy'],
+                           'homeDirectory': ['/home/test'],
+                           'loginShell': ['/bin/sh'],
+                           'userPassword': ['p4ssw0rd'],
+                           'modifyTimestamp': ['20070227012807Z']})
+
+    config = dict(self.config)
+    config['rfc2307bis_alt'] = 1
+    attrlist = ['cn', 'gidNumber', 'uniqueMember',
+                'modifyTimestamp']
+    uidattr  = ['uid']
+
+    mock_rlo = self.mox.CreateMock(ldap.ldapobject.ReconnectLDAPObject)
+    mock_rlo.simple_bind_s(
+        cred='TEST_BIND_PASSWORD',
+        who='TEST_BIND_DN')
+    mock_rlo.search(base='TEST_BASE',
+                    filterstr='TEST_FILTER',
+                    scope=ldap.SCOPE_ONELEVEL,
+                    attrlist=mox.SameElementsAs(attrlist)).AndReturn(
+                        'TEST_RES')
+
+    mock_rlo.result('TEST_RES',
+                    all=0,
+                    timeout='TEST_TIMELIMIT').AndReturn(
+                        (ldap.RES_SEARCH_ENTRY, [test_posix_group]))
+    mock_rlo.result('TEST_RES',
+                    all=0,
+                    timeout='TEST_TIMELIMIT').AndReturn(
+                        (ldap.RES_SEARCH_RESULT, None))
+    mock_rlo.search(base=dn_user,
+                    filterstr='(objectClass=*)',
+                    scope=ldap.SCOPE_BASE,
+                    attrlist=mox.SameElementsAs(uidattr)).AndReturn(
+                        'TEST_RES')
+    mock_rlo.result('TEST_RES',
+                    all=0,
+                    timeout='TEST_TIMELIMIT').AndReturn(
+                        (ldap.RES_SEARCH_ENTRY, [test_posix_account]))
+    mock_rlo.result('TEST_RES',
+                    all=0,
+                    timeout='TEST_TIMELIMIT').AndReturn(
+                        (ldap.RES_SEARCH_RESULT, None))
+
+    self.mox.StubOutWithMock(ldap, 'ldapobject')
+    ldap.ldapobject.ReconnectLDAPObject(
+        uri='TEST_URI',
+        retry_max='TEST_RETRY_MAX',
+        retry_delay='TEST_RETRY_DELAY').AndReturn(mock_rlo)
+
+    self.mox.ReplayAll()
+
+    source = ldapsource.LdapSource(config)
+    data = source.GetGroupMap()
+
+    self.assertEqual(1, len(data))
+
+    ent = data.PopItem()
+
+    self.assertEqual('testgroup', ent.name)
+    self.assertEqual(1, len(ent.members))
 
   def testGetShadowMap(self):
     test_shadow = ('cn=test,ou=People,dc=example,dc=com',
@@ -661,17 +788,17 @@ class TestUpdateGetter(unittest.TestCase):
     ts = 1259641025
     expected_ldap_ts = '20091201041705Z'
     self.assertEquals(expected_ldap_ts,
-                      ldapsource.UpdateGetter().FromTimestampToLdap(ts))
+                      ldapsource.UpdateGetter({}).FromTimestampToLdap(ts))
 
   def testFromLdapToTimestamp(self):
     expected_ts = 1259641025
     ldap_ts = '20091201041705Z'
     self.assertEquals(expected_ts,
-                      ldapsource.UpdateGetter().FromLdapToTimestamp(ldap_ts))
+                      ldapsource.UpdateGetter({}).FromLdapToTimestamp(ldap_ts))
 
   def testPasswdEmptySourceGetUpdates(self):
     """Test that getUpdates on the PasswdUpdateGetter works."""
-    getter = ldapsource.PasswdUpdateGetter()
+    getter = ldapsource.PasswdUpdateGetter({})
 
     data = getter.GetUpdates(self.source, 'TEST_BASE',
                              'TEST_FILTER', 'base', None)
@@ -689,7 +816,7 @@ class TestUpdateGetter(unittest.TestCase):
 
   def testShadowEmptySourceGetUpdates(self):
     """Test that getUpdates on the ShadowUpdateGetter works."""
-    getter = ldapsource.ShadowUpdateGetter()
+    getter = ldapsource.ShadowUpdateGetter({})
 
     data = getter.GetUpdates(self.source, 'TEST_BASE',
                              'TEST_FILTER', 'base', None)
@@ -698,7 +825,7 @@ class TestUpdateGetter(unittest.TestCase):
 
   def testAutomountEmptySourceGetsUpdates(self):
     """Test that getUpdates on the AutomountUpdateGetter works."""
-    getter = ldapsource.AutomountUpdateGetter()
+    getter = ldapsource.AutomountUpdateGetter({})
 
     data = getter.GetUpdates(self.source, 'TEST_BASE',
                              'TEST_FILTER', 'base', None)
@@ -709,7 +836,7 @@ class TestUpdateGetter(unittest.TestCase):
     """Test that a bad scope raises a config.ConfigurationError."""
     # One of the getters is sufficient, they all inherit the
     # exception-raising code.
-    getter = ldapsource.PasswdUpdateGetter()
+    getter = ldapsource.PasswdUpdateGetter({})
 
     self.assertRaises(error.ConfigurationError, getter.GetUpdates,
                       self.source, 'TEST_BASE', 'TEST_FILTER',
