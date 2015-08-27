@@ -713,11 +713,16 @@ class ShadowUpdateGetter(UpdateGetter):
     if shadow_ent.flag is None:
       shadow_ent.flag = 0
     if 'userPassword' in obj:
-      passwd = obj['userPassword'][0]
-      if passwd[:7].lower() == '{crypt}':
-        shadow_ent.passwd = passwd[7:]
-      else:
-        logging.info('Ignored password that was not in crypt format')
+
+      # If the user need to update their password after authenticating, do not cache.
+      if not 'pwdReset' in obj or obj['pwdReset'].lower().strip() == 'false':
+        passwd = obj['userPassword'][0]
+        if passwd[:7] == '{crypt}':
+          shadow_ent.passwd = passwd[7:].strip()
+        elif passwd[0] == '{':
+          shadow_ent.passwd=passwd.strip()
+        else:
+          logging.info('Ignored password that was not in crypt format')
     return shadow_ent
 
 
