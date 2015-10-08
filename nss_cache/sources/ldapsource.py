@@ -671,7 +671,8 @@ class ShadowUpdateGetter(UpdateGetter):
     super(ShadowUpdateGetter, self).__init__(conf)
     self.attrs = ['uid', 'shadowLastChange', 'shadowMin',
                   'shadowMax', 'shadowWarning', 'shadowInactive',
-                  'shadowExpire', 'shadowFlag', 'userPassword']
+                  'shadowExpire', 'shadowFlag', 'userPassword',
+                  'pwdReset']
     if 'uidattr' in self.conf:
       self.attrs.append(self.conf['uidattr'])
     if 'uidregex' in self.conf:
@@ -715,7 +716,7 @@ class ShadowUpdateGetter(UpdateGetter):
     if 'userPassword' in obj:
 
       # If the user need to update their password after authenticating, do not cache.
-      if not 'pwdReset' in obj or obj['pwdReset'].lower().strip() == 'false':
+      if not 'pwdReset' in obj or obj['pwdReset'][0].lower().strip() == 'false':
         passwd = obj['userPassword'][0]
         if passwd[:7] == '{crypt}':
           shadow_ent.passwd = passwd[7:].strip()
